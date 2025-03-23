@@ -79,6 +79,11 @@ async def on_message(message):
     if message.author == bot.user:
         return
     
+    # Ensure bot processes commands first
+    if message.content.startswith("!"):
+        await bot.process_commands(message)
+        return
+
     user_answer = message.content.lower()
     if current_answer and user_answer == current_answer:
         user = message.author.name
@@ -86,10 +91,17 @@ async def on_message(message):
         save_scores()
         await message.channel.send(f"Correct! 🎉 {user} now has {scores[user]} points.")
         current_answer = ""  # Reset current answer
-    elif current_answer and user_answer != current_answer:
-        # Provide feedback for incorrect answers
+    elif current_answer:
         await message.channel.send(f"Sorry, {message.author.name}, that's not correct. Try again!")
-    await bot.process_commands(message)
+
+    await bot.process_commands(message)  # Ensure other commands still work
+
+@bot.command(aliases=["hunt"])
+async def hint(ctx):
+    if current_answer:
+        await ctx.send(f"Hint: The answer starts with {current_answer[0].upper()}...")
+    else:
+        await ctx.send("No active question right now!")
 
 @bot.command()
 async def leaderboard(ctx):
@@ -98,13 +110,6 @@ async def leaderboard(ctx):
     else:
         leaderboard_text = "\n".join([f"{user}: {score}" for user, score in sorted(scores.items(), key=lambda x: x[1], reverse=True)])
         await ctx.send(f"**Leaderboard:**\n{leaderboard_text}")
-
-@bot.command()
-async def hint(ctx):
-    if current_answer:
-        await ctx.send(f"Hint: The answer starts with {current_answer[0].upper()}...")
-    else:
-        await ctx.send("No active question right now!")
 
 @bot.command()
 async def ask_trivia(ctx):
@@ -116,3 +121,4 @@ async def ask_trivia(ctx):
         await ctx.send("No trivia questions available right now!")
 
 bot.run(TOKEN)
+
