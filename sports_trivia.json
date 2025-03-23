@@ -1,0 +1,38 @@
+import json
+
+# Define the trivia data
+sports_trivia = [
+    {
+        "category": "Football",
+        "question": "Who won the 2020 NFL Super Bowl?",
+        "options": ["Kansas City Chiefs", "San Francisco 49ers", "New England Patriots", "Los Angeles Rams"],
+        "answer": "Kansas City Chiefs"
+    },
+    {
+        "category": "Basketball",
+        "question": "Who won the 2021 NBA Championship?",
+        "options": ["Milwaukee Bucks", "Miami Heat", "Los Angeles Lakers", "Golden State Warriors"],
+        "answer": "Milwaukee Bucks"
+    },
+    {
+        "category": "Soccer",
+        "question": "Who won the 2018 FIFA World Cup?",
+        "options": ["Brazil", "France", "Germany", "Argentina"],
+        "answer": "France"
+    },
+    {
+        "category": "Tennis",
+        "question": "Who holds the most Grand Slam singles titles in men's tennis?",
+        "options": ["Roger Federer", "Rafael Nadal", "Novak Djokovic", "Pete Sampras"],
+        "answer": "Roger Federer"
+    }
+]
+
+# Path to save the file
+file_path = "sports_trivia.json"
+
+# Write the trivia data to a JSON file
+with open(file_path, "w") as file:
+    json.dump(sports_trivia, file, indent=4)
+
+print(f"File '{file_path}' has been created successfully with sports trivia!")
