@@ -1,0 +1,102 @@
+import discord
+import asyncio
+import random
+import json
+from discord.ext import commands, tasks
+
+TOKEN = "YOUR_BOT_TOKEN"
+SCORES_FILE = "scores.json"
+TRIVIA_FILE = "sports_trivia.json"
+
+intents = discord.Intents.default()
+intents.messages = True
+intents.guilds = True
+intents.message_content = True
+
+bot = commands.Bot(command_prefix="!", intents=intents)
+scores = {}
+current_question = None
+current_answer = ""
+
+# Load scores from file
+def load_scores():
+    global scores
+    try:
+        with open(SCORES_FILE, "r") as f:
+            scores = json.load(f)
+    except FileNotFoundError:
+        scores = {}
+
+# Save scores to file
+def save_scores():
+    with open(SCORES_FILE, "w") as f:
+        json.dump(scores, f, indent=4)
+
+# Load a random sports trivia question
+def get_sports_trivia():
+    global current_answer
+    with open(TRIVIA_FILE, "r") as f:
+        questions = json.load(f)
+    trivia = random.choice(questions)
+    current_answer = trivia["answer"].lower()
+    return trivia["category"], trivia["question"], trivia["options"]
+
+# Post trivia question
+after_ready = False
+@tasks.loop(hours=24)
+async def post_trivia():
+    global current_question
+    channel = bot.get_channel(834183021779091497)  # Replace with actual channel ID
+    category, question, options = get_sports_trivia()
+    current_question = question
+    options_text = "\n".join([f"{i+1}. {opt}" for i, opt in enumerate(options)])
+    
+    await channel.send(f"**{category} Trivia Time!**\n{question}\n{options_text}")
+
+@bot.event
+async def on_ready():
+    global after_ready
+    if not after_ready:
+        post_trivia.start()
+        load_scores()
+        after_ready = True
+    print(f'Logged in as {bot.user}')
+
+@bot.event
+async def on_message(message):
+    global current_answer
+    if message.author == bot.user:
+        return
+    
+    user_answer = message.content.strip().lower()  # Normalize user input (remove extra spaces and make lowercase)
+    
+    if current_answer:
+        print(f"User Answer: {user_answer}, Correct Answer: {current_answer}")  # Debugging line
+        if user_answer == current_answer:  # Compare normalized answers
+            user = message.author.name
+            scores[user] = scores.get(user, 0) + 1
+            save_scores()
+            await message.channel.send(f"Correct! 🎉 {user} now has {scores[user]} points.")
+            current_answer = ""  # Reset current answer
+        else:
+            # Optional: Add this to provide feedback on incorrect answers
+            await message.channel.send(f"Oops! {message.author.name}, your answer is incorrect. Try again!")
+
+    await bot.process_commands(message)
+
+@bot.command()
+async def leaderboard(ctx):
+    if not scores:
+        await ctx.send("No scores yet!")
+    else:
+        leaderboard_text = "\n".join([f"{user}: {score}" for user, score in sorted(scores.items(), key=lambda x: x[1], reverse=True)])
+        await ctx.send(f"**Leaderboard:**\n{leaderboard_text}")
+
+@bot.command()
+async def hint(ctx):
+    if current_answer:
+        await ctx.send(f"Hint: The answer starts with {current_answer[0].upper()}...")
+    else:
+        await ctx.send("No active question right now!")
+
+bot.run(TOKEN)
