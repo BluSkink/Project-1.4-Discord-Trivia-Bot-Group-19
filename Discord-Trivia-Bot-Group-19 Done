@@ -17,6 +17,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 scores = {}
 current_question = None
 current_answer = ""
+last_question_category = None
 
 # Load scores from file
 def load_scores():
@@ -34,24 +35,34 @@ def save_scores():
 
 # Load a random sports trivia question
 def get_sports_trivia():
-    global current_answer
+    global current_answer, last_question_category
     with open(TRIVIA_FILE, "r") as f:
         questions = json.load(f)
-    trivia = random.choice(questions)
-    current_answer = trivia["answer"].lower()
-    return trivia["category"], trivia["question"], trivia["options"]
+    
+    # Filter out the last question's category to avoid repeats
+    available_questions = [q for q in questions if q["category"] != last_question_category]
+    
+    if available_questions:
+        trivia = random.choice(available_questions)
+        current_answer = trivia["answer"].lower()
+        last_question_category = trivia["category"]
+        return trivia["category"], trivia["question"], trivia["options"]
+    else:
+        return None, None, None  # No available questions
 
 # Post trivia question
 after_ready = False
 @tasks.loop(hours=24)
 async def post_trivia():
     global current_question
-    channel = bot.get_channel(834183021779091497)  # Replace with actual channel ID
+    channel = bot.get_channel(YOUR_CHANNEL_ID)  # Replace with actual channel ID
     category, question, options = get_sports_trivia()
-    current_question = question
-    options_text = "\n".join([f"{i+1}. {opt}" for i, opt in enumerate(options)])
-    
-    await channel.send(f"**{category} Trivia Time!**\n{question}\n{options_text}")
+    if category and question:
+        current_question = question
+        options_text = "\n".join([f"{i+1}. {opt}" for i, opt in enumerate(options)])
+        await channel.send(f"**{category} Trivia Time!**\n{question}\n{options_text}")
+    else:
+        await channel.send("No more trivia questions available!")
 
 @bot.event
 async def on_ready():
@@ -68,20 +79,16 @@ async def on_message(message):
     if message.author == bot.user:
         return
     
-    user_answer = message.content.strip().lower()  # Normalize user input (remove extra spaces and make lowercase)
-    
-    if current_answer:
-        print(f"User Answer: {user_answer}, Correct Answer: {current_answer}")  # Debugging line
-        if user_answer == current_answer:  # Compare normalized answers
-            user = message.author.name
-            scores[user] = scores.get(user, 0) + 1
-            save_scores()
-            await message.channel.send(f"Correct! 🎉 {user} now has {scores[user]} points.")
-            current_answer = ""  # Reset current answer
-        else:
-            # Optional: Add this to provide feedback on incorrect answers
-            await message.channel.send(f"Oops! {message.author.name}, your answer is incorrect. Try again!")
-
+    user_answer = message.content.lower()
+    if current_answer and user_answer == current_answer:
+        user = message.author.name
+        scores[user] = scores.get(user, 0) + 1
+        save_scores()
+        await message.channel.send(f"Correct! 🎉 {user} now has {scores[user]} points.")
+        current_answer = ""  # Reset current answer
+    elif current_answer and user_answer != current_answer:
+        # Provide feedback for incorrect answers
+        await message.channel.send(f"Sorry, {message.author.name}, that's not correct. Try again!")
     await bot.process_commands(message)
 
 @bot.command()
@@ -98,5 +105,14 @@ async def hint(ctx):
         await ctx.send(f"Hint: The answer starts with {current_answer[0].upper()}...")
     else:
         await ctx.send("No active question right now!")
+
+@bot.command()
+async def ask_trivia(ctx):
+    category, question, options = get_sports_trivia()
+    if category and question:
+        options_text = "\n".join([f"{i+1}. {opt}" for i, opt in enumerate(options)])
+        await ctx.send(f"**{category} Trivia Time!**\n{question}\n{options_text}")
+    else:
+        await ctx.send("No trivia questions available right now!")
 
 bot.run(TOKEN)
